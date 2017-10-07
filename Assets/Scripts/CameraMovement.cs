@@ -6,6 +6,9 @@ public class CameraMovement : MonoBehaviour {
 
     public string earthTag = "Plane";
 
+    public float afterMovingSlowdown = .5f;
+    public float afterMovingDivisionSpeed = 2f;
+
     public float movingSpeed = .5f;
     public float thresholdBeforeZoom = .5f;
 
@@ -20,7 +23,8 @@ public class CameraMovement : MonoBehaviour {
     public float maxRelativeSize = 4f;
 
     [Header("Orthografic camera parameters")]
-    public float minOrthoSize = .5f;
+    public float minOrthoSize = 50f;
+    public float maxOrthoSize = 150f; 
     public float orthoZoomSpeed = .5f;
 
     private Camera camera;
@@ -28,32 +32,69 @@ public class CameraMovement : MonoBehaviour {
     private Vector3 lookPoint;
     private bool swipeBegan;
 
+    private bool isAfterMoving;
+    private Vector3 vectorAfterMoving;
+    private float afterMovingSpeed;
+
     private void Start()
     {
+        isAfterMoving = false;
         swipeBegan = false;
         camera = GetComponent<Camera>();
         if (camera == null)
         {
             Debug.Log("There is no camera object for cameras moves script!");
         }
-    }
 
-    private void FixedUpdate()
-    {
-        CheckLookPoint();
+        SetLookPoint();
     }
 
     void Update () {
-		if (Input.touchCount == 1)
+        AfterMoving();
+        CheckTouchInput();
+	}
+
+    private void AfterMoving()
+    {
+        if (isAfterMoving)
+        {
+            afterMovingSpeed -= afterMovingSlowdown * Time.deltaTime;
+            if (afterMovingSpeed <= 0)
+            {
+                isAfterMoving = false;
+            }
+            else
+            {
+                transform.Translate(vectorAfterMoving * afterMovingSpeed);
+
+                if (SetLookPoint() == false)
+                {
+                    transform.Translate(-vectorAfterMoving * afterMovingSpeed);
+                    isAfterMoving = false;
+                }
+            }
+        }
+    }
+
+    private void CheckTouchInput()
+    {
+        if (Input.touchCount == 1)
         {
             Touch touch = Input.GetTouch(0);
             transform.Translate(-touch.deltaPosition * movingSpeed);
 
-            if (CheckLookPoint() == false)
+            if (SetLookPoint() == false)
             {
                 transform.Translate(touch.deltaPosition * movingSpeed);
             }
-        } else if (Input.touchCount == 2)
+            else if (touch.phase == TouchPhase.Ended)
+            {
+                vectorAfterMoving = -touch.deltaPosition ;
+                afterMovingSpeed = movingSpeed / afterMovingDivisionSpeed;
+                isAfterMoving = true;
+            }
+        }
+        else if (Input.touchCount == 2)
         {
             Touch[] touches = new Touch[2];
             for (int i = 0; i < 2; i++)
@@ -65,9 +106,9 @@ public class CameraMovement : MonoBehaviour {
             CheckWorldRotate(touches);
             CheckUpAngleDiff(touches);
         }
-	}
+    }
 
-    bool CheckLookPoint()
+    bool SetLookPoint()
     {
         bool foundLookPoint = false;
 
@@ -101,7 +142,7 @@ public class CameraMovement : MonoBehaviour {
             if (camera.orthographic)
             {
                 camera.orthographicSize -= deltaDistance * orthoZoomSpeed;
-                camera.orthographicSize = Mathf.Max(minOrthoSize, camera.orthographicSize);
+                camera.orthographicSize = Mathf.Clamp(camera.orthographicSize, minOrthoSize, maxOrthoSize); 
             }
         }
     }
