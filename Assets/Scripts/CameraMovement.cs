@@ -11,6 +11,7 @@ public class CameraMovement : MonoBehaviour {
 
     [Header("Rotate world stuff")]
     public float rotateWorldSpeed = .3f;
+    public float rotateThreshold = .6f;
 
     [Header("Up Angle stuff")]
     public float upAngleSpeed = .5f;
@@ -23,10 +24,13 @@ public class CameraMovement : MonoBehaviour {
     public float orthoZoomSpeed = .5f;
 
     private Camera camera;
+    private float oldAngle;
     private Vector3 lookPoint;
+    private bool swipeBegan;
 
     private void Start()
     {
+        swipeBegan = false;
         camera = GetComponent<Camera>();
         if (camera == null)
         {
@@ -52,17 +56,14 @@ public class CameraMovement : MonoBehaviour {
         } else if (Input.touchCount == 2)
         {
             Touch[] touches = new Touch[2];
-            for (int i=0; i<2; i++)
+            for (int i = 0; i < 2; i++)
             {
                 touches[i] = Input.GetTouch(i);
             }
 
-            if (!CheckZoom(touches))
-            {
-                CheckUpAngleDiff(touches);
-                CheckWorldRotate(touches);
-            }
-            
+            CheckZoom(touches);
+            CheckWorldRotate(touches);
+            CheckUpAngleDiff(touches);
         }
 	}
 
@@ -84,7 +85,7 @@ public class CameraMovement : MonoBehaviour {
         return foundLookPoint;
     }
 
-    private bool CheckZoom(Touch[] touches)
+    private void CheckZoom(Touch[] touches)
     {
         Vector2[] prevPositions = new Vector2[2];
         for (int i = 0; i < 2; i++)
@@ -102,98 +103,57 @@ public class CameraMovement : MonoBehaviour {
                 camera.orthographicSize -= deltaDistance * orthoZoomSpeed;
                 camera.orthographicSize = Mathf.Max(minOrthoSize, camera.orthographicSize);
             }
-            return true;
         }
-        return false;
     }
 
-    private bool CheckUpAngleDiff(Touch[] touches)
+    private void CheckUpAngleDiff(Touch[] touches)
     {
         if (touches[0].phase != TouchPhase.Moved || touches[1].phase != TouchPhase.Moved)
         {
-            return false;
+            return;
         }
 
         float maxVectorsMagnitude = Mathf.Max(touches[0].deltaPosition.magnitude,touches[1].deltaPosition.magnitude);
         float sumMagnitude = (touches[0].deltaPosition + touches[1].deltaPosition).magnitude;
         float relativeSize = touches[0].deltaPosition.magnitude / touches[1].deltaPosition.magnitude;
 
-        Debug.Log(maxVectorsMagnitude);
-        Debug.Log(sumMagnitude);
-        Debug.Log(relativeSize);
-
-        if ( sumMagnitude > maxVectorsMagnitude && (relativeSize > 1f/maxRelativeSize) && (relativeSize < 1f*maxRelativeSize))
+        if (sumMagnitude > maxVectorsMagnitude && (relativeSize > 1f / maxRelativeSize) && (relativeSize < 1f * maxRelativeSize))
         {
             float averageRotate = (touches[0].deltaPosition.y + touches[1].deltaPosition.y) / 2;
 
-            transform.RotateAround(lookPoint, transform.right, averageRotate * upAngleSpeed);
+            transform.RotateAround(lookPoint, transform.right, -averageRotate * upAngleSpeed);
             if (transform.rotation.eulerAngles.x > maxAngle
                 || transform.rotation.eulerAngles.x < minAngle)
             {
-                transform.RotateAround(lookPoint, transform.right, -averageRotate * upAngleSpeed);
+                transform.RotateAround(lookPoint, transform.right, averageRotate * upAngleSpeed);
             }
-            return true;
         }
-
-        return false;
     }
 
-    private bool CheckWorldRotate(Touch[] touches)
+    private void CheckWorldRotate(Touch[] touches)
     {
-
-        float maxVectorsMagnitude = Mathf.Max(touches[0].deltaPosition.magnitude, touches[1].deltaPosition.magnitude);
-        float sumMagnitude = (touches[0].deltaPosition + touches[1].deltaPosition).magnitude;
-
-        Debug.Log(maxVectorsMagnitude);
-        Debug.Log(sumMagnitude);
-
-        if (sumMagnitude < maxVectorsMagnitude 
-            || touches[0].phase == TouchPhase.Stationary
-            || touches[1].phase == TouchPhase.Stationary)
+        for (int i = 0; i < 2; i++)
         {
-            int direction = CheckDirection(touches);
-
-            float sumRotate = touches[0].deltaPosition.magnitude + touches[1].deltaPosition.magnitude;
-
-            transform.RotateAround(lookPoint, Vector3.up, sumMagnitude * upAngleSpeed * direction);
-            return true;
+            if (touches[i].phase == TouchPhase.Began)
+            {
+                swipeBegan = true;
+            }
         }
-        return false;
-    }
 
-    private int CheckDirection(Touch[] touches)
-    {
-        Touch left = touches[1];
-        Touch right = touches[0];
-
-        if (touches[0].position.x == touches[1].position.x)
+        if (!swipeBegan)
         {
-            if (touches[0].position.y < touches[1].position.y)
-            {
-                left = touches[0];
-                right = touches[1];
-            }
+            Vector3 angleVector = touches[1].position - touches[0].position;
+            float newAngle = Mathf.Atan2(angleVector.x, angleVector.y) *Mathf.Rad2Deg;
+            float deltaAngle = Mathf.DeltaAngle(newAngle, oldAngle);
+            oldAngle = newAngle;
 
-            if (left.deltaPosition.x < 0 || right.deltaPosition.x > 0)
-            {
-                return -1;
-            }
-            return 1;
+            transform.RotateAround(lookPoint, Vector3.up, deltaAngle * rotateWorldSpeed);
         }
         else
         {
-            if (touches[0].position.x < touches[1].position.x)
-            {
-                left = touches[0];
-                right = touches[1];
-            }
-
-
-            if (left.deltaPosition.y > 0 || right.deltaPosition.y < 0)
-            {
-                return -1;
-            }
-            return 1;
-        }
+            Vector3 oldAngleVector = touches[1].position - touches[0].position;
+            oldAngle = Mathf.Atan2(oldAngleVector.x, oldAngleVector.y) * Mathf.Rad2Deg;
+            swipeBegan = false;
+        }   
     }
 }
