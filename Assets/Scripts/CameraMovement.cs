@@ -24,6 +24,7 @@ public class CameraMovement : MonoBehaviour {
 
     [Header("Up Angle stuff")]
     public float upAngleSpeed = .5f;
+    public float maxAngleSpeed = 9f;
     public float minAngle = 30;
     public float maxAngle = 80;
     public float maxRelativeSize = 4f;
@@ -74,6 +75,11 @@ public class CameraMovement : MonoBehaviour {
     //
     // BLOCK: Look point
     //
+
+    /*
+     * Changes look point and checks if its on world space
+     * If point not found, returns false. Otherwise returns true
+     */
     bool SetLookPoint()
     {
         bool foundLookPoint = false;
@@ -84,7 +90,7 @@ public class CameraMovement : MonoBehaviour {
             if (hit.transform.tag == earthTag)
             {
                 foundLookPoint = true;
-                lookPoint = hit.transform.position;
+                lookPoint = hit.point;
                 break;
             }
         }
@@ -107,6 +113,10 @@ public class CameraMovement : MonoBehaviour {
         CheckUpAngleDiff();
     }
 
+    /*
+     * Zooming
+     * Checks distance between touches
+     */ 
     private void CheckZoom()
     {
         Vector2[] prevPositions = new Vector2[2];
@@ -128,6 +138,9 @@ public class CameraMovement : MonoBehaviour {
         }
     }
 
+    /*
+     * Rotating camera around objet on vertical axis
+     */ 
     private void CheckUpAngleDiff()
     {
         float maxVectorsMagnitude = Mathf.Max(touches[0].deltaPosition.magnitude,touches[1].deltaPosition.magnitude);
@@ -137,15 +150,37 @@ public class CameraMovement : MonoBehaviour {
         if (sumMagnitude > maxVectorsMagnitude && (relativeSize > 1f / maxRelativeSize) && (relativeSize < 1f * maxRelativeSize))
         {
             float averageRotate = (touches[0].deltaPosition.y + touches[1].deltaPosition.y) / 2;
-
-            transform.RotateAround(lookPoint, transform.right, -averageRotate * upAngleSpeed);
-            if (transform.rotation.eulerAngles.x > maxAngle || transform.rotation.eulerAngles.x < minAngle)
+            // Limits maximum speed of rotation
+            float currentSpeed = averageRotate * upAngleSpeed;
+            if (Mathf.Abs(currentSpeed) > maxAngleSpeed)
             {
-                transform.RotateAround(lookPoint, transform.right, averageRotate * upAngleSpeed);
+                currentSpeed = currentSpeed < 0 ? -maxAngleSpeed : maxAngleSpeed;
             }
+
+            transform.RotateAround(lookPoint, transform.right, -currentSpeed);
+
+            // If angle is too big or too small, revert
+            if (transform.localRotation.eulerAngles.x > maxAngle)
+            {
+                while (transform.rotation.eulerAngles.x >= maxAngle)
+                {
+                    transform.RotateAround(lookPoint, transform.right, -.1f);
+                }
+            } else if (transform.localRotation.eulerAngles.x < minAngle)
+            {
+                while (transform.rotation.eulerAngles.x <= minAngle)
+                {
+                    transform.RotateAround(lookPoint, transform.right, .1f);
+                }
+            }
+            transform.LookAt(lookPoint);
         }
     }
 
+    /*
+     * Rotates camera to left/right aroung lookPoint
+     * Checks angle between touches
+     */ 
     private void CheckWorldRotate()
     {
         for (int i = 0; i < 2; i++)
@@ -164,6 +199,7 @@ public class CameraMovement : MonoBehaviour {
             oldAngle = newAngle;
 
             transform.RotateAround(lookPoint, Vector3.up, deltaAngle * rotateWorldSpeed);
+            transform.LookAt(lookPoint);
         }
         else
         {
