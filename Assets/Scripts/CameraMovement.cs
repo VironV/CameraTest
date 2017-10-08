@@ -12,47 +12,17 @@ public class CameraMovement : MonoBehaviour {
     public float afterMovingSlowdown = .5f;
     public float afterMovingDivisionSpeed = 2f;
 
-    [Header("Zoomimg parameters")]
-    public float minOrthoSize = 50f;
-    public float maxOrthoSize = 150f;
-    public float orthoZoomSpeed = .5f;
-    public float thresholdBeforeZoom = .5f;
-
-    [Header("Rotate world stuff")]
-    public float rotateWorldSpeed = .3f;
-    public float rotateThreshold = .6f;
-
-    [Header("Up Angle stuff")]
-    public float upAngleSpeed = .5f;
-    public float maxAngleSpeed = 9f;
-    public float minAngle = 30;
-    public float maxAngle = 80;
-    public float maxRelativeSize = 4f;
-
-    private Camera cameraComponent;
-
-    private Touch[] touches;
-
-    private float oldAngle;
     private Vector3 lookPoint;
-    private bool rotationBegining;
 
     private bool isAfterMoving;
     private Vector3 vectorAfterMoving;
     private float afterMovingSpeed;
 
+    public Vector3 GetLookPoint { get { return lookPoint; } } 
+
     private void Start()
     {
-        touches = new Touch[2];
-
         isAfterMoving = false;
-        rotationBegining = false;
-        cameraComponent = GetComponent<Camera>();
-        if (cameraComponent == null)
-        {
-            Debug.Log("There is no camera object for cameras moves script!");
-        }
-
         SetLookPoint();
     }
 
@@ -66,15 +36,7 @@ public class CameraMovement : MonoBehaviour {
         {
             MovingCamera();
         }
-        else if (Input.touchCount == 2)
-        {
-            DoubleTouchCheck();
-        }
 	}
-
-    //
-    // BLOCK: Look point
-    //
 
     /*
      * Changes look point and checks if its on world space
@@ -97,134 +59,24 @@ public class CameraMovement : MonoBehaviour {
 
         return foundLookPoint;
     }
-
-    //
-    // BLOCK: camera moves (zoom, rotation)
-    //
-    private void DoubleTouchCheck()
-    {
-        for (int i = 0; i < 2; i++)
-        {
-            touches[i] = Input.GetTouch(i);
-        }
-
-        CheckZoom();
-        CheckWorldRotate();
-        CheckUpAngleDiff();
-    }
+    
 
     /*
-     * Zooming
-     * Checks distance between touches
-     */ 
-    private void CheckZoom()
-    {
-        Vector2[] prevPositions = new Vector2[2];
-        for (int i = 0; i < 2; i++)
-        {
-            prevPositions[i] = touches[i].position - touches[i].deltaPosition;
-        }
-
-        float prevDistance = (prevPositions[1] - prevPositions[0]).magnitude;
-        float currentDistance = (touches[1].position - touches[0].position).magnitude;
-        float deltaDistance = currentDistance - prevDistance;
-        if (Mathf.Abs(deltaDistance) > thresholdBeforeZoom)
-        {
-            if (cameraComponent.orthographic)
-            {
-                cameraComponent.orthographicSize -= deltaDistance * orthoZoomSpeed;
-                cameraComponent.orthographicSize = Mathf.Clamp(cameraComponent.orthographicSize, minOrthoSize, maxOrthoSize); 
-            }
-        }
-    }
-
-    /*
-     * Rotating camera around objet on vertical axis
-     */ 
-    private void CheckUpAngleDiff()
-    {
-        float maxVectorsMagnitude = Mathf.Max(touches[0].deltaPosition.magnitude,touches[1].deltaPosition.magnitude);
-        float sumMagnitude = (touches[0].deltaPosition + touches[1].deltaPosition).magnitude;
-        float relativeSize = touches[0].deltaPosition.magnitude / touches[1].deltaPosition.magnitude;
-
-        if (sumMagnitude > maxVectorsMagnitude && (relativeSize > 1f / maxRelativeSize) && (relativeSize < 1f * maxRelativeSize))
-        {
-            float averageRotate = (touches[0].deltaPosition.y + touches[1].deltaPosition.y) / 2;
-            // Limits maximum speed of rotation
-            float currentSpeed = averageRotate * upAngleSpeed;
-            if (Mathf.Abs(currentSpeed) > maxAngleSpeed)
-            {
-                currentSpeed = currentSpeed < 0 ? -maxAngleSpeed : maxAngleSpeed;
-            }
-
-            transform.RotateAround(lookPoint, transform.right, -currentSpeed);
-
-            // If angle is too big or too small, revert
-            if (transform.localRotation.eulerAngles.x > maxAngle)
-            {
-                while (transform.rotation.eulerAngles.x >= maxAngle)
-                {
-                    transform.RotateAround(lookPoint, transform.right, -.1f);
-                }
-            } else if (transform.localRotation.eulerAngles.x < minAngle)
-            {
-                while (transform.rotation.eulerAngles.x <= minAngle)
-                {
-                    transform.RotateAround(lookPoint, transform.right, .1f);
-                }
-            }
-            transform.LookAt(lookPoint);
-        }
-    }
-
-    /*
-     * Rotates camera to left/right aroung lookPoint
-     * Checks angle between touches
-     */ 
-    private void CheckWorldRotate()
-    {
-        for (int i = 0; i < 2; i++)
-        {
-            if (touches[i].phase == TouchPhase.Began)
-            {
-                rotationBegining = true;
-            }
-        }
-
-        if (!rotationBegining)
-        {
-            Vector3 angleVector = touches[1].position - touches[0].position;
-            float newAngle = Mathf.Atan2(angleVector.x, angleVector.y) *Mathf.Rad2Deg;
-            float deltaAngle = Mathf.DeltaAngle(newAngle, oldAngle);
-            oldAngle = newAngle;
-
-            transform.RotateAround(lookPoint, Vector3.up, deltaAngle * rotateWorldSpeed);
-            transform.LookAt(lookPoint);
-        }
-        else
-        {
-            Vector3 oldAngleVector = touches[1].position - touches[0].position;
-            oldAngle = Mathf.Atan2(oldAngleVector.x, oldAngleVector.y) * Mathf.Rad2Deg;
-            rotationBegining = false;
-        }   
-    }
-
-    //
-    // BLOCK: Moving
-    //
-
+     * Moves camera
+     * Not goes beyond border
+     */
     private void MovingCamera()
     {
-        touches[0] = Input.GetTouch(0);
-        transform.Translate(-touches[0].deltaPosition * movingSpeed);
+        transform.Translate(-Input.GetTouch(0).deltaPosition * movingSpeed);
 
+        // If false - new point is beyond border, so we revert
         if (SetLookPoint() == false)
         {
-            transform.Translate(touches[0].deltaPosition * movingSpeed);
+            transform.Translate(Input.GetTouch(0).deltaPosition * movingSpeed);
         }
-        else if (touches[0].phase == TouchPhase.Ended)
+        else if (Input.GetTouch(0).phase == TouchPhase.Ended)
         {
-            vectorAfterMoving = -touches[0].deltaPosition;
+            vectorAfterMoving = -Input.GetTouch(0).deltaPosition;
             afterMovingSpeed = movingSpeed / afterMovingDivisionSpeed;
             isAfterMoving = true;
         }
