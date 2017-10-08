@@ -104,4 +104,20 @@ public class CameraMovement : MonoBehaviour {
             }
         }
     }
+
+    private void SpeedChange(float change)
+    {
+        movingSpeed *= change;
+        afterMovingSlowdown *= change;
+    }
+
+    private void OnEnable()
+    {
+        CameraZooming.OnZoomChange += SpeedChange;
+    }
+
+    private void OnDisable()
+    {
+        CameraZooming.OnZoomChange -= SpeedChange;
+    }
 }

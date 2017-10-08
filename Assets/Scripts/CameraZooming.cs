@@ -11,6 +11,9 @@ public class CameraZooming : MonoBehaviour {
 
     private Camera cameraComponent;
 
+    public delegate void ZoomChange(float change);
+    public static event ZoomChange OnZoomChange;
+
     private void Start()
     {
         cameraComponent = GetComponent<Camera>();
@@ -49,8 +52,16 @@ public class CameraZooming : MonoBehaviour {
     {
         if (cameraComponent.orthographic)
         {
+            float oldSize = cameraComponent.orthographicSize;
+
             cameraComponent.orthographicSize -= deltaDistance * orthoZoomSpeed;
             cameraComponent.orthographicSize = Mathf.Clamp(cameraComponent.orthographicSize, minOrthoSize, maxOrthoSize);
+
+            float newSize = cameraComponent.orthographicSize;
+            if (OnZoomChange != null)
+            {
+                OnZoomChange(newSize / oldSize);
+            }
         }
     }
 }
